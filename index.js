@@ -11,7 +11,7 @@ app.use(express.json())
 
 
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.cnuoch3.mongodb.net/?retryWrites=true&w=majority`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -33,22 +33,39 @@ async function run() {
     const studentSelectClassCollection = client.db("martialDB").collection("selectClass");
 
     // instructors api code
-    app.get('/instructors', async(req, res) =>{
-        const result = await instructorsCollection.find().toArray();
-        res.send(result);
+    app.get('/instructors', async (req, res) => {
+      const result = await instructorsCollection.find().toArray();
+      res.send(result);
     })
 
     // instructors classes api code
-    app.get('/classes', async(req, res) => {
-        const result = await classesCollection.find().toArray();
-        res.send(result)
+    app.get('/classes', async (req, res) => {
+      const result = await classesCollection.find().toArray();
+      res.send(result)
     })
 
     // student select class collection
-    app.post('/selecClasses', async(req, res) =>{
+    app.post('/selectClass', async (req, res) => {
       const classes = req.body;
       const result = await studentSelectClassCollection.insertOne(classes);
       res.send(result)
+    })
+
+    app.get('/selectClass', async (req, res) => {
+      const email = req.query.email;
+      if (!email) {
+        res.send([]);
+      }
+      const query = { email: email }
+      const result = await studentSelectClassCollection.find(query).toArray();
+      res.send(result);
+    })
+
+    app.delete('/selectClass/:id', async(req, res) =>{
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)}
+      const result = await studentSelectClassCollection.deleteOne(query);
+      res.send(result);
     })
 
 
@@ -64,10 +81,10 @@ run().catch(console.dir);
 
 
 
-app.get('/', (req, res) =>{
-    res.send('Martial Arts is coming...')
+app.get('/', (req, res) => {
+  res.send('Martial Arts is coming...')
 })
 
-app.listen(port, () =>{
-    console.log(`martial arts running port: ${port}`)
+app.listen(port, () => {
+  console.log(`martial arts running port: ${port}`)
 })
