@@ -1,6 +1,7 @@
 const express = require('express');
 const app = express();
 require('dotenv').config()
+const jwt = require('jsonwebtoken');
 const cors = require('cors')
 const port = process.env.PORT || 5000;
 
@@ -32,6 +33,14 @@ async function run() {
     const instructorsCollection = client.db("martialDB").collection("instructors");
     const classesCollection = client.db("martialDB").collection("classes")
     const studentSelectClassCollection = client.db("martialDB").collection("selectClass");
+
+
+    // json web token relate
+    app.post('/jwt', (req, res) =>{
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn: '1h'})
+      res.send({token})
+    })
 
 
     // all users get admin handle related api
