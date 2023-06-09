@@ -57,8 +57,18 @@ async function run() {
     app.post('/jwt', (req, res) => {
       const user = req.body;
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
-      res.send({ token })
+      res.send({ token });
     })
+
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      if (user?.role !== 'admin') {
+        res.status(403).send({ error: true, message: 'unauthorized user token' });
+      }
+      next()
+    }
 
 
     // all users get admin handle related api
@@ -73,14 +83,14 @@ async function run() {
       res.send(result);
     })
 
-    app.get('/allusers', async (req, res) => {
+    app.get('/allusers', verifyJWT, verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     })
 
     // admin check related api
     app.get('/allusers/admin/:email', verifyJWT, async (req, res) => {
-      const email = req.params.id;
+      const email = req.params.email;
 
       if (req.decoded.email !== email) {
         res.send({ admin: false })
@@ -106,10 +116,10 @@ async function run() {
 
     // instructor related api
     app.get('/allusers/instructor/:email', verifyJWT, async (req, res) => {
-      const email = req.params.id;
+      const email = req.params.email;
 
       if (req.decoded.email !== email) {
-        res.send({ admin: false })
+        res.send({ instructor: false });
       }
 
       const query = { email: email };
@@ -117,6 +127,7 @@ async function run() {
       const result = { instructor: user?.role === 'instructor' };
       res.send(result);
     })
+
 
 
     app.patch('/allusers/instructor/:id', async (req, res) => {
