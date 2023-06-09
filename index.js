@@ -148,6 +148,12 @@ async function run() {
       res.send(result);
     })
 
+    app.post('/instructors', async(req, res) =>{
+      const newClass = req.body;
+      const result = await instructorsCollection.insertOne(newClass);
+      res.send(result);
+    })
+
     // instructors classes api code
     app.get('/classes', async (req, res) => {
       const result = await classesCollection.find().toArray();
