@@ -70,6 +70,16 @@ async function run() {
       next()
     }
 
+    const verifyInstructor = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      if (user?.role !== 'instructor') {
+        res.status(403).send({ error: true, message: 'unauthorized user token' });
+      }
+      next()
+    }
+
 
     // all users get admin handle related api
     app.post('/allusers', async (req, res) => {
@@ -114,6 +124,19 @@ async function run() {
       res.send(result);
     })
 
+    app.patch('/classes/:id', async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          status: 'approved'
+        }
+      }
+      const result = await classesCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    })
+
+
     // instructor related api
     app.get('/allusers/instructor/:email', verifyJWT, async (req, res) => {
       const email = req.params.email;
@@ -148,13 +171,18 @@ async function run() {
       res.send(result);
     })
 
-    app.post('/instructors', async(req, res) =>{
-      const newClass = req.body;
-      const result = await instructorsCollection.insertOne(newClass);
+    app.post('/instructors', verifyJWT, verifyInstructor, async(req, res) =>{
+      const newInstructor = req.body;
+      const result = await instructorsCollection.insertOne(newInstructor);
       res.send(result);
     })
 
-    // instructors classes api code
+    app.post('/classes', verifyJWT, verifyInstructor, async(req, res) =>{
+      const newClass = req.body;
+      const result = await classesCollection.insertOne(newClass);
+      res.send(result);
+    })
+
     app.get('/classes', async (req, res) => {
       const result = await classesCollection.find().toArray();
       res.send(result)
