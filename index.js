@@ -136,6 +136,18 @@ async function run() {
       res.send(result);
     })
 
+    app.patch('/classes/deny/:id', async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          status: 'deny'
+        }
+      }
+      const result = await classesCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    })
+
 
     // instructor related api
     app.get('/allusers/instructor/:email', verifyJWT, async (req, res) => {
@@ -151,7 +163,20 @@ async function run() {
       res.send(result);
     })
 
+    app.get('/classes', verifyJWT, async (req, res) => {
+      const email = req.query.email;
+      if (!email) {
+        res.send([]);
+      }
+      const decodedEmail = req.decoded.email;
+      if (email !== decodedEmail) {
+        return res.status(403).send({ error: true, message: 'forbidden access' })
+      }
 
+      const query = { email: email }
+      const result = await classesCollection.find(query).toArray();
+      res.send(result);
+    })
 
     app.patch('/allusers/instructor/:id', async (req, res) => {
       const id = req.params.id;
@@ -165,7 +190,6 @@ async function run() {
       res.send(result);
     })
 
-    // instructors api code
     app.get('/instructors', async (req, res) => {
       const result = await instructorsCollection.find().toArray();
       res.send(result);
