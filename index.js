@@ -83,6 +83,35 @@ async function run() {
     }
 
 
+    // allusers get data here
+    app.get('/allinstructors', async (req, res) => {
+      const result = await usersCollection.find({ role: "instructor" }).toArray();
+      res.send(result);
+    })
+
+    // ***************************
+    app.get('/allApprovedClass', async(req, res) =>{
+      const result = await classesCollection.find({status: "approved"}).toArray();
+      res.send(result);
+    })
+    // ***************************
+
+    app.get('/enrolledClass/:email', async(req, res) =>{
+      const email = req.params.email;
+      const query = {email: email};
+      const result = await paymentCollection.find(query).toArray();
+      res.send(result);
+    })
+
+    app.get('/enrolled', async(req, res) =>{
+      const result = await paymentCollection.find().toArray();
+      res.send(result);
+    })
+
+    // ********************
+
+
+
     // all users get admin handle related api
     app.post('/allusers', async (req, res) => {
       const user = req.body;
@@ -95,10 +124,12 @@ async function run() {
       res.send(result);
     })
 
+
     app.get('/allusers', verifyJWT, verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     })
+
 
     // admin check related api
     app.get('/allusers/admin/:email', verifyJWT, async (req, res) => {
@@ -165,7 +196,9 @@ async function run() {
       res.send(result);
     })
 
-    app.get('/classes', verifyJWT, async (req, res) => {
+
+// TODO: verifyJWT, *************************
+    app.get('/classes', verifyAdmin, async (req, res) => {
       const email = req.query.email;
       if (!email) {
         res.send([]);
@@ -174,11 +207,13 @@ async function run() {
       if (email !== decodedEmail) {
         return res.status(403).send({ error: true, message: 'forbidden access' })
       }
-
       const query = { email: email }
-      const result = await classesCollection.find(query).toArray();
+      const result = await classesCollection.find().toArray();
       res.send(result);
     })
+    // *******************
+
+
 
     app.patch('/allusers/instructor/:id', async (req, res) => {
       const id = req.params.id;
@@ -192,8 +227,8 @@ async function run() {
       res.send(result);
     })
 
-    app.get('/instructors', async (req, res) => {
-      const result = await instructorsCollection.find().toArray();
+    app.get('/allInstructors,', async (req, res) => {
+      const result = await usersCollection.find().toArray();
       res.send(result);
     })
 
@@ -207,19 +242,15 @@ async function run() {
       const newClass = req.body;
       const result = await classesCollection.insertOne(newClass);
       res.send(result);
-    })
+    })                                                                                                        
 
+
+    // *****************
     app.get('/allClasses', async (req, res) => {
       const result = await classesCollection.find().toArray();
       res.send(result)
     })
-
-    // // student select class collection
-    // app.post('/selectClass', async (req, res) => {
-    //   const classes = req.body;
-    //   const result = await studentSelectClassCollection.insertOne(classes);
-    //   res.send(result)
-    // })
+    // ******************
 
     app.get('/selectClass', verifyJWT, async (req, res) => {
       const email = req.query.email;
@@ -245,130 +276,93 @@ async function run() {
       res.send(result);
     })
 
+    app.get("/selectClass/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await studentSelectClassCollection.findOne(query);
+      res.send(result);
+    });
+
+    app.post("/selectClass", async (req, res) => {
+      const item = req.body;
+
+      const query = { selectClassId: item.selectClassId };
+      const existingCart = await studentSelectClassCollection.findOne(query);
+
+      if (existingCart) {
+        return res.send({ message: "user already exists" });
+      }
+
+      const result = await studentSelectClassCollection.insertOne(item);
+      return res.send(result);
+    });
+
+    // create payment intent
+    app.post("/create-payment-intent", verifyJWT, async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
+
+    app.post("/payments", verifyJWT, async (req, res) => {
+      const payment = req.body;
+      const id = payment.id;
+      console.log(id);
+      const filter = { id: id };
+      const query = {
+        _id: new ObjectId(id),
+      };
+      const existingPayment = await paymentCollection.findOne(filter);
+      if (existingPayment) {
+        return res.send({ message: "Already Enrolled This Class" })
+      }
+      const insertResult = await paymentCollection.insertOne(payment);
+      const deleteResult = await studentSelectClassCollection.deleteOne(query);
+      return res.send({ insertResult, deleteResult });
+    });
 
 
- // Id dore payment kaj baki new****
- app.get("/selectClass/:id", async (req, res) => {
-  const id = req.params.id;
-  const query = { _id: new ObjectId(id) };
-  const result = await studentSelectClassCollection.findOne(query);
-  res.send(result);
-});
+    app.patch("/all-classes/seats/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updateClass = await classesCollection.findOne(filter);
+      if (!updateClass) {
+        return;
+      }
+      const updateEnrollStudent = updateClass.student + 1;
+      const updatedAvailableSeats = updateClass.seats - 1;
+      const update = {
+        $set: {
+          seats: updatedAvailableSeats,
+          student: updateEnrollStudent,
+        },
+      };
+      const result = await classesCollection.updateOne(filter, update);
+      res.send(result);
+    });
 
-
-// // select Class cats theke delete
-// app.delete('/selectClass/:id', async (req, res) => {
-//   const id = req.params.id;
-//   const query = { _id: new ObjectId(id) }
-//   const result = await selectCollection.deleteOne(query);
-//   res.send(result);
-// })
-
-// i donot know use this api new***
-
-app.post("/selectClass", async (req, res) => {
-  const item = req.body;
-
-  const query = { selectClassId: item.selectClassId };
-  const existingCart = await studentSelectClassCollection.findOne(query);
-
-  if (existingCart) {
-    return res.send({ message: "user already exists" });
-  }
-
-  const result = await studentSelectClassCollection.insertOne(item);
-  return res.send(result);
-});
-
-// create payment intent
-app.post("/create-payment-intent", verifyJWT, async (req, res) => {
-  const { price } = req.body;
-  const amount = parseInt(price * 100);
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount: amount,
-    currency: "usd",
-    payment_method_types: ["card"],
-  });
-
-  res.send({
-    clientSecret: paymentIntent.client_secret,
-  });
-});
-
-app.post("/payments", verifyJWT, async (req, res) => {
-  const payment = req.body;
-
-  const id = payment.id;
-  console.log(id);
-  const filter = { id: id };
-  const query = {
-    _id: new ObjectId(id),
-  };
-  const existingPayment = await paymentCollection.findOne(filter);
-  if (existingPayment) {
-    return res.send({ message: "Already Enrolled This Class" })
-  }
-
-
-  const insertResult = await paymentCollection.insertOne(payment);
-
-
-  const deleteResult = await studentSelectClassCollection.deleteOne(query);
-
-  return res.send({ insertResult, deleteResult });
-});
-
-
-app.patch("/all-classes/seats/:id", async (req, res) => {
-  const id = req.params.id;
-  const filter = { _id: new ObjectId(id) };
-  const updateClass = await classesCollection.findOne(filter);
-  if (!updateClass) {
-    return;
-  }
-  const updateEnrollStudent = updateClass.student + 1;
-  const updatedAvailableSeats = updateClass.seats - 1;
-  const update = {
-    $set: {
-      seats: updatedAvailableSeats,
-      student: updateEnrollStudent,
-    },
-  };
-  const result = await classesCollection.updateOne(filter, update);
-  res.send(result);
-});
-
-app.get('/payments', verifyJWT, async (req, res) => {
-  const email = req.query.email;
-  if (!email) {
-    return res.send([]);
-  }
-  const decodedEmail = req.decoded.email;
-  if (email !== decodedEmail) {
-    return res.status(403).send({ error: true, message: 'forbidden access' });
-  }
-  const query = { email: email }
-  const result = await paymentCollection.find(query).sort({date:1}).toArray()
-  res.send(result);
-})
-
-
-    // Create payment intents
-    // app.post('/create-payment-intent', async (req, res) => {
-    //   const { price } = req.body;
-    //   const amount = price * 100;
-
-    //   const paymentIntent = await stripe.paymentIntents.create({
-    //     amount: amount,
-    //     currency: 'usd',
-    //     payment_method_types: ['card']
-    //   });
-    //   res.send({
-    //     clientSecret: paymentIntent.client_secret
-    //   })
-
-    // })
-
+    // TODO: verifyJWT using this here
+    app.get('/payments', async (req, res) => {
+      const email = req.query.email;
+      if (!email) {
+        return res.send([]);
+      }
+      const decodedEmail = req.decoded.email;
+      if (email !== decodedEmail) {
+        return res.status(403).send({ error: true, message: 'forbidden access' });
+      }
+      const query = { email: email }
+      const result = await paymentCollection.find(query).sort({ date: 1 }).toArray()
+      res.send(result);
+    })
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
