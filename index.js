@@ -82,6 +82,8 @@ async function run() {
       next()
     }
 
+    const limit = 6;
+
 
     // allusers get data here
     app.get('/allinstructors', async (req, res) => {
@@ -94,6 +96,7 @@ async function run() {
       const result = await classesCollection.find({status: "approved"}).toArray();
       res.send(result);
     })
+
     // ***************************
 
     app.get('/enrolledClass/:email', async(req, res) =>{
@@ -105,6 +108,18 @@ async function run() {
 
     app.get('/enrolled', async(req, res) =>{
       const result = await paymentCollection.find().toArray();
+      res.send(result);
+    })
+
+    // popular classes
+    app.get('/popularClasses',async(req,res)=>{
+      const result = await classesCollection.find({status:"approved"}).sort({student: -1}).toArray();
+      res.send(result);
+    })
+
+    // popular instructor
+    app.get('/popularInstructors', async(req, res) =>{
+      const result = await usersCollection.find({ role: "instructor" }).limit(limit).toArray();
       res.send(result);
     })
 
@@ -196,9 +211,16 @@ async function run() {
       res.send(result);
     })
 
+    app.get('/myClasses/:email', async(req, res) => {
+      const email = req.params.email;
+      const query = {email: email};
+      const result = await classesCollection.find(query).toArray();
+      res.send(result);
+    })
 
-// TODO: verifyJWT, *************************
-    app.get('/classes', verifyAdmin, async (req, res) => {
+
+// TODO: verifyJWT, using this *************************
+    app.get('/classes', async (req, res) => {
       const email = req.query.email;
       if (!email) {
         res.send([]);
@@ -208,7 +230,7 @@ async function run() {
         return res.status(403).send({ error: true, message: 'forbidden access' })
       }
       const query = { email: email }
-      const result = await classesCollection.find().toArray();
+      const result = await classesCollection.find(query).toArray();
       res.send(result);
     })
     // *******************
@@ -227,7 +249,7 @@ async function run() {
       res.send(result);
     })
 
-    app.get('/allInstructors,', async (req, res) => {
+    app.get('/allInstructors', async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     })
@@ -242,7 +264,21 @@ async function run() {
       const newClass = req.body;
       const result = await classesCollection.insertOne(newClass);
       res.send(result);
-    })                                                                                                        
+    })  
+    
+    // Admin deny and send feedback instructor class findOne
+    app.put('/addClasses/:id', async (req, res) => {
+      const id = req.params.id;
+      const feedback = req.body.feedback; // Assuming the new seat value is provided in the request body
+
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $push: { feedback: feedback } // Push the new seat value to the "availableSeats" array field
+      };
+
+      const result = await classesCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    })
 
 
     // *****************
@@ -350,7 +386,7 @@ async function run() {
     });
 
     // TODO: verifyJWT using this here
-    app.get('/payments', async (req, res) => {
+    app.get('/payments', verifyJWT, async (req, res) => {
       const email = req.query.email;
       if (!email) {
         return res.send([]);
